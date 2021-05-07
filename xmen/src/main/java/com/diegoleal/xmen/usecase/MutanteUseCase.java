@@ -4,12 +4,18 @@ import com.diegoleal.xmen.entity.Mutante;
 import com.diegoleal.xmen.model.SecuenciaADN;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
 public class MutanteUseCase {
 
     public static final int CANTIDAD_SECUENCIA = 4;
+
+    public String CADENA_A = "AAAA";
+    public String CADENA_T = "TTTT";
+    public String CADENA_G = "GGGG";
+    public String CADENA_C = "CCCC";
 
     public static final String BASE_NITROGENADA = "ATCG";
 
@@ -19,141 +25,117 @@ public class MutanteUseCase {
      * @return True si es mutante False si no es mutante.
      */
     public boolean isMutante(SecuenciaADN secuenciaADN) {
-        String[][] adn = this.obtenerMatriz(secuenciaADN.getDna());
-        return validarSecuencias(adn);
+        return extraerDatosAndValidar(secuenciaADN.getDna());
     }
 
     /**
-     * Método encargado de validar las secuencias en una matriz
-     * @param adn Matriz a validar
-     * @return True si existe más de una secuencia de cuatro letras iguales False si no existe.
+     * Método encargado de sacar las horizontales, verticales y oblicuas de la data y luego validar las secuencias.
+     * @param secuencia Lista de secuencias a validar.
+     * @return True si es mutante, False si no es mutante.
      */
-    private boolean validarSecuencias(String[][] adn) {
+    public boolean extraerDatosAndValidar(List<String> secuencia) {
+        List<String> vertical = new ArrayList<>();
+        List<String> oblicuoSuperior = new ArrayList<>();
+        List<String> oblicuoInferior = new ArrayList<>();
+        int indexRow = 0;
+        for (String data : secuencia) {
+            int indexColum = 0;
+            int indexSuperior = 0;
+            int indexInferior = oblicuoInferior.size();
+            validarTamanoCadena(data, secuencia);
+            for (char c : data.toCharArray()) {
 
-        int secuenciasVerticales = 0;
+                validarBaseNitrogenadaSecuencia(c);
+                if (vertical.size() > indexColum) {
+                    vertical.set(indexColum, vertical.get(indexColum).concat(String.valueOf(c)));
+                } else {
+                    vertical.add(String.valueOf(c));
+                }
+
+                if (oblicuoSuperior.size() > indexColum) {
+                    if ((indexRow - 1) >= 0 && (indexColum - 1) >= 0 && indexColum >= indexRow) {
+                        oblicuoSuperior.set(indexSuperior, oblicuoSuperior.get(indexSuperior).concat(String.valueOf(c)));
+                        indexSuperior++;
+                    }
+                } else {
+                    oblicuoSuperior.add(String.valueOf(c));
+                }
+
+                if (indexColum < indexRow) {
+                    if ((indexRow - 1) >= 0 && (indexColum - 1) >= 0) {
+                        oblicuoInferior.set(indexInferior - indexColum, oblicuoInferior.get(indexInferior - indexColum).concat(String.valueOf(c)));
+                    } else {
+                        oblicuoInferior.add(String.valueOf(c));
+                    }
+                }
+                indexColum++;
+            }
+            indexRow++;
+        }
+        return this.validarSecuencia(secuencia,vertical,oblicuoSuperior, oblicuoInferior);
+    }
+
+    /**
+     * Método encargado de validar que una letra pertenezca a la base nitrogenada
+     * @param c Letra de la cadena a validar.
+     */
+    private void validarBaseNitrogenadaSecuencia(char c) {
+        if (!BASE_NITROGENADA.contains(String.valueOf(c))) {
+            throw new RuntimeException("Base nitrogenada no permitda.");
+        }
+    }
+
+    /**
+     * Método encargado de validar que cada cadena concuerde con el tamaño de la secuencia ADN.
+     * @param data Cadena a validar.
+     * @param secuencia Secuencia a validar.
+     */
+    private void validarTamanoCadena(String data, List<String> secuencia) {
+        if (data.length() != secuencia.size()) {
+            throw new RuntimeException("No es una matriz NxN");
+        }
+    }
+
+    /**
+     * Método encargado de recorrer las horizontales, verticales y oblicuas para encontrar si existe una secuencia.
+     * @param secuencia Secuencia a validar, horizontales.
+     * @param vertical secuencias verticales.
+     * @param oblicuoSuperior Secuencias oblicuos superior.
+     * @param oblicuoInferior Secuencias oblicuos inferior.
+     * @return True si la persona es mutante o False si no es mutante.
+     */
+    private boolean validarSecuencia(List<String> secuencia, List<String> vertical, List<String> oblicuoSuperior, List<String> oblicuoInferior) {
         int secuenciasHorizontales = 0;
         int secuenciasOblicuo = 0;
-        int tamanoMatriz = adn.length;
+        int secuenciasVerticales = 0;
+        for (int i = 0; i < secuencia.size(); i++) {
 
-        for (int i = 0; i < tamanoMatriz; i ++) {
-
-            if (validarHorizontal(adn, i)){
+            if (validarSecuenciaEnCadena(secuencia.get(i))) {
                 secuenciasHorizontales++;
             }
-            if(validarVertical(adn, i)) {
+
+            if (vertical.size() > i && validarSecuenciaEnCadena(vertical.get(i))) {
                 secuenciasVerticales++;
             }
-            if (validarOblicua(adn, i)){
+            if (oblicuoSuperior.size() > i && validarSecuenciaEnCadena(oblicuoSuperior.get(i))) {
+                secuenciasOblicuo++;
+            }
+            if (oblicuoInferior.size() > i && validarSecuenciaEnCadena(oblicuoInferior.get(i))) {
                 secuenciasOblicuo++;
             }
         }
-
         return (( (secuenciasVerticales > 1 || secuenciasHorizontales > 1 || secuenciasOblicuo > 1) ||
                 ( secuenciasVerticales == 1 && secuenciasHorizontales == 1 && secuenciasOblicuo == 1) ));
     }
 
     /**
-     * Método encargado de validar las secuencias horizontales en una matriz.
-     * @param matriz Matriz a validar.
-     * @param row indice por el cual validar.
-     * @return True si existe una secuencia de ADN False si no existe.
+     * Método encargado de validar una cadena en las bases nitrogenadas permitidas.
+     * @param cadena Cadena de secuencia a validar.
+     * @return True si tiene una secuencia de base nitrogenada False si no tiene.
      */
-    private static boolean validarHorizontal(String[][] matriz, int row) {
-        String last = matriz[row][0];
-        String actual = "";
-        int count = 0;
-        for (int column = 0; column < matriz[row].length; column++){
-            actual = matriz[row][column];
-            if (last.equals(actual)) {
-                count++;
-                if (count == 4) {
-                    return true;
-                }
-            } else {
-                count=0;
-                last = actual;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Método encargado de validar las secuencias verticales en una matriz.
-     * @param matriz Matriz a validar.
-     * @param indice Indice por el cual validar.
-     * @return True si existe una secuencia de ADN False si no existe.
-     */
-    private static boolean validarVertical(String[][] matriz, int indice) {
-        String last = matriz[0][indice];
-        String actual = "";
-        int count = 0;
-        for (int column = 0; column < matriz[indice].length; column++){
-            actual = matriz[column][indice];
-            if (last.equals(actual)) {
-                count++;
-                if (count == CANTIDAD_SECUENCIA) {
-                    return true;
-                }
-            } else {
-                count=0;
-                last = actual;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Método encargado de validar la vertical en la matriz.
-     * @param matriz Matriz a validar.
-     * @param row Fila por la cual empezar.
-     * @return True si existe una secuancia de ADN False si no existe.
-     */
-    private static boolean validarOblicua(String[][] matriz, int row) {
-        if ((row + CANTIDAD_SECUENCIA) <= matriz[row].length){
-            String last = matriz[row][0];
-            int count = 0;
-            for (int i = 0; i < matriz[row].length; i++){
-                if ((i+1) < matriz[row].length && (row + i) < matriz[row].length &&
-                        last.equals(matriz[row + i][i])) {
-                    count++;
-                    if (count == CANTIDAD_SECUENCIA) {
-                        return true;
-                    }
-                } else {
-                    count = 0;
-                    last = (row + i) < matriz[row].length?matriz[row + i][i]:matriz[row][i];
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Método encargado de transformar una lista de string en una matriz y validar el tamano de la matriz y las
-     * bases nitrogenadas.
-     * @param secuencia Lista de String
-     * @return Matriz tipo string.
-     */
-    private String[][] obtenerMatriz(List<String> secuencia) {
-        String[][] adn = new String[secuencia.size()][secuencia.size()];
-        int size = secuencia.size();
-        int indexRow = 0;
-
-        for (String data : secuencia) {
-            int indexColum = 0;
-            for (char c : data.toCharArray()) {
-                if (size == data.toCharArray().length) {
-                    adn[indexRow][indexColum] = String.valueOf(c);
-                    if (!BASE_NITROGENADA.contains(adn[indexRow][indexColum])) {
-                        throw new RuntimeException("Base nitrogenada no permitda.");
-                    }
-                    indexColum++;
-                } else {
-                    throw new RuntimeException("No es una matriz NxN");
-                }
-            }
-            indexRow++;
-        }
-        return adn;
+    public boolean validarSecuenciaEnCadena(String cadena) {
+        return cadena.contains(CADENA_A) || cadena.contains(CADENA_C) || cadena.contains(CADENA_G)
+                || cadena.contains(CADENA_T);
     }
 }
+
